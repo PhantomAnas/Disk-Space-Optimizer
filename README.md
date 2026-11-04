@@ -28,7 +28,7 @@ git clone https://github.com/PhantomAnas/Disk-Space-Optimizer.git
 cd Disk-Space-Optimizer
 python -m venv .venv
 .venv\Scripts\activate          # Linux/macOS: source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev]"         # or: pip install -r requirements.txt
 disk-space-optimizer            # or: python launcher.py
 ```
 

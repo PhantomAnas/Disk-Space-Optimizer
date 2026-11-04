@@ -1,0 +1,9 @@
+# Runtime dependencies (same as pyproject.toml):  pip install -r requirements.txt
+PySide6-Essentials>=6.6
+platformdirs>=3
+send2trash>=1.8
+
+# Development (tests, exe build)
+pytest>=8
+pytest-timeout>=2
+pyinstaller>=6
