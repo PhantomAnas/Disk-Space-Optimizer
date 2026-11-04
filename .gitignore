@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Build output (the exe is published as a GitHub Release, never committed)
+build/
+dist/
+*.exe
+*.spec.bak
+
+# Editors / OS
+.vscode/
+.idea/
+.claude/
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Never commit scan results or logs
+*.jsonl
+*.log
+_scratch/

@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "disk-space-optimizer"
+version = "0.1.0"
+description = "Disk space analyzer and cleaner: scan any drive or folder, see the largest files and folders with size, type and last-used dates, filter and sort, find duplicates, and free space safely via the Recycle Bin."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "Anas (PhantomAnas)" }]
+keywords = ["disk-space", "disk-cleanup", "storage-analyzer", "large-files", "duplicate-finder", "recycle-bin", "pyside6", "windows"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications :: Qt",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: System :: Filesystems",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "PySide6-Essentials>=6.6",
+    "platformdirs>=3",
+    "send2trash>=1.8",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8", "pytest-timeout>=2", "pyinstaller>=6"]
+
+[project.urls]
+Homepage = "https://github.com/PhantomAnas/Disk-Space-Optimizer"
+Issues = "https://github.com/PhantomAnas/Disk-Space-Optimizer/issues"
+
+[project.scripts]
+disk-space-optimizer = "diskoptimizer.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+diskoptimizer = ["assets/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
