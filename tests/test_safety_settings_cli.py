@@ -23,7 +23,7 @@ def test_protection_reasons(tmp_path):
         assert safety.protection_reason("C:\\pagefile.sys", roots) == "Windows system file"
         assert safety.protection_reason(os.path.join(os.environ["WINDIR"], "notepad.exe")) is not None
         assert safety.protection_reason(os.path.join(os.environ["PROGRAMFILES"], "App", "a.dll")) is not None
-    assert any("diskoptimizer" in r or "disk-space-optimizer" in r for r in safety.protected_roots())
+    assert any("diskoptimizer" in r.lower() or "disk-space-optimizer" in r.lower() for r in safety.protected_roots())
 
 
 def test_send_to_trash_uses_send2trash_and_logs(tmp_path, monkeypatch):
