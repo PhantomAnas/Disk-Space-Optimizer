@@ -26,6 +26,26 @@ def test_protection_reasons(tmp_path):
     assert any("diskoptimizer" in r.lower() or "disk-space-optimizer" in r.lower() for r in safety.protected_roots())
 
 
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows folders")
+def test_windows_leftovers_are_deletable_and_appdata_is_visible():
+    sysdrive = os.environ.get("SYSTEMDRIVE", "C:") + "\\"
+    hidden = safety.system_roots()
+    for name in ("Windows.old", "$Windows.~BT", "$Windows.~WS", "ESD"):
+        path = os.path.join(sysdrive, name)
+        assert os.path.normcase(path) not in hidden
+        assert safety.protection_reason(path) is None
+        assert safety.protection_reason(os.path.join(path, "Users", "x.txt")) is None
+        assert safety.is_windows_leftover(os.path.join(path, "x"))
+    assert not safety.is_windows_leftover(os.path.join(os.environ["LOCALAPPDATA"], "Temp", "x"))
+    for name in ("$WinREAgent", "System Volume Information", "Recovery"):
+        assert safety.protection_reason(os.path.join(sysdrive, name)) is not None
+    # AppData is shown in scans; only its Windows-owned parts refuse deletion.
+    local = os.environ["LOCALAPPDATA"]
+    assert not any(os.path.normcase(local).startswith(r) or r.startswith(os.path.normcase(local)) for r in hidden)
+    assert safety.protection_reason(os.path.join(local, "Microsoft", "x")) is not None
+    assert safety.protection_reason(os.path.join(local, "Temp", "x")) is None
+
+
 def test_send_to_trash_uses_send2trash_and_logs(tmp_path, monkeypatch):
     calls = []
     import send2trash as s2t

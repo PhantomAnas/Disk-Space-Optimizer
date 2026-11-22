@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "disk-space-optimizer"
-version = "0.1.0"
+version = "0.1.1"
 description = "Disk space analyzer and cleaner: scan any drive or folder, see the largest files and folders with size, type and last-used dates, filter and sort, find duplicates, and free space safely via the Recycle Bin."
 readme = "README.md"
 requires-python = ">=3.10"

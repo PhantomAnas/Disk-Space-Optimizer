@@ -18,12 +18,22 @@ PROTECTED_ROOT_FILES = {"pagefile.sys", "hiberfil.sys", "swapfile.sys", "bootmgr
 # Recycle Bin).
 ANY_DRIVE_SYSTEM_DIRS = {"$recycle.bin", "system volume information"}
 
-# Folders Windows keeps at the root of the system drive for itself: boot and
-# recovery data, and the working folders Windows Update and feature upgrades use.
+# Folders Windows keeps at the root of the system drive and still needs: boot
+# and recovery data, rollback data for installs in progress, and the staging
+# folder for recovery-environment updates.
 SYSTEM_ROOT_DIRS = ANY_DRIVE_SYSTEM_DIRS | {
-    "recovery", "boot", "efi", "config.msi", "$windows.~bt", "$windows.~ws", "$windows.~q",
-    "$winreagent", "$sysreset", "$getcurrent", "windows.old", "esd", "msocache", "documents and settings",
+    "recovery", "boot", "efi", "config.msi", "$winreagent", "documents and settings",
 }
+
+# Leftovers of previous Windows installations and finished upgrades.  These
+# are NOT hidden or protected: they are often the biggest thing you can free
+# (Windows.old alone is commonly 10-30 GB), and Windows runs fine without
+# them; you only lose the option to roll back to the previous version.
+WINDOWS_LEFTOVER_DIRS = {"windows.old", "$windows.~bt", "$windows.~ws", "$windows.~q", "$getcurrent", "$sysreset", "esd"}
+
+LEFTOVER_HINT = ("Windows owns these files, so recycling them can need administrator rights. Run the app as administrator, "
+                 "or use Settings > System > Storage > Temporary files (\"Previous Windows installation(s)\" / "
+                 "\"Windows Update Cleanup\").")
 
 
 def _norm(p: str) -> str:
@@ -32,10 +42,12 @@ def _norm(p: str) -> str:
 
 def system_roots() -> list[str]:
     """Operating-system folders that are hidden from scans entirely (and never
-    deleted): Windows itself, its update and upgrade caches, and the parts of
-    Program Files / ProgramData / AppData that belong to Windows rather than
-    to an app you installed.  Removing anything here can break Windows Update,
-    Defender, Store apps or booting."""
+    deleted): Windows itself, boot/recovery data, and the parts of Program
+    Files / ProgramData that belong to Windows rather than to an app you
+    installed.  Removing anything here can break Windows Update, Defender,
+    Store apps or booting.  AppData is deliberately not hidden (browser and
+    app caches live there), and neither are old-installation leftovers such
+    as Windows.old (see WINDOWS_LEFTOVER_DIRS)."""
     roots: list[str] = []
     if sys.platform == "win32":
         env = os.environ
@@ -56,11 +68,6 @@ def system_roots() -> list[str]:
             pd = env["PROGRAMDATA"]
             roots += [os.path.join(pd, n) for n in ("Microsoft", "Package Cache", "Packages", "regid.1991-06.com.microsoft",
                                                     "USOPrivate", "USOShared", "WindowsHolographicDevices")]
-        for key in ("APPDATA", "LOCALAPPDATA"):
-            if env.get(key):
-                roots.append(os.path.join(env[key], "Microsoft"))
-        if env.get("LOCALAPPDATA"):
-            roots.append(os.path.join(env["LOCALAPPDATA"], "Packages"))
     else:
         roots += ["/bin", "/boot", "/dev", "/etc", "/lib", "/lib32", "/lib64", "/proc", "/run", "/sbin", "/sys",
                   "/usr", "/var", "/snap", "/System", "/Library", "/private", "/cores"]
@@ -77,6 +84,11 @@ def protected_roots() -> list[str]:
         for key in ("PROGRAMFILES", "PROGRAMFILES(X86)", "PROGRAMDATA", "PROGRAMW6432"):
             if env.get(key):
                 roots.append(_norm(env[key]))
+        for key in ("APPDATA", "LOCALAPPDATA"):
+            if env.get(key):
+                roots.append(_norm(os.path.join(env[key], "Microsoft")))
+        if env.get("LOCALAPPDATA"):
+            roots.append(_norm(os.path.join(env["LOCALAPPDATA"], "Packages")))
     else:
         roots.append(_norm("/Applications"))
     # The app itself (exe folder or checkout)
@@ -141,7 +153,21 @@ def send_to_trash(path: str) -> None:
     try:
         send2trash(path)
     except Exception as exc:  # noqa: BLE001 - send2trash raises OSError/TrashPermissionError variants
-        raise TrashError(str(exc) or type(exc).__name__) from exc
+        msg = str(exc) or type(exc).__name__
+        if is_windows_leftover(path):
+            msg += ". " + LEFTOVER_HINT
+        raise TrashError(msg) from exc
+
+
+def is_windows_leftover(path: str) -> bool:
+    """Inside Windows.old, $Windows.~BT or another old-installation leftover
+    at the root of the system drive."""
+    if sys.platform != "win32":
+        return False
+    p = _norm(path)
+    sysdrive = os.path.normcase(os.environ.get("SYSTEMDRIVE", "C:"))
+    drive, tail = os.path.splitdrive(p)
+    return drive == sysdrive and tail.strip("\\/").split(os.sep, 1)[0] in WINDOWS_LEFTOVER_DIRS
 
 
 def log_trashed(path: str, size: int) -> None:
