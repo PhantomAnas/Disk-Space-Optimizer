@@ -81,6 +81,39 @@ def test_scan_skips_symlink_files(tree):
     assert scanner.scan(tree).total_files == 7
 
 
+def test_scan_hides_system_folders(tree):
+    photos = os.path.join(tree, "photos")
+    res = scanner.scan(tree, system_dirs=[photos])
+    assert res.total_files == 5 and res.system_hidden == 1
+    assert not any(f.path.startswith(photos) for f in res.files)
+    assert os.path.join(tree, "photos") not in res.tree.children
+    assert scanner.scan(tree, hide_system=False, system_dirs=[photos]).total_files == 7
+    inside = scanner.scan(photos, system_dirs=[photos])          # scanning a system folder directly
+    assert inside.total_files == 0 and inside.system_hidden == 1
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows file attributes")
+def test_scan_hides_system_attribute_files(tree):
+    import subprocess
+    target = os.path.join(tree, "music", "song.mp3")
+    subprocess.run(["attrib", "+s", target], capture_output=True, check=True)
+    try:
+        res = scanner.scan(tree)
+        assert res.total_files == 6 and res.system_hidden == 1
+        assert "song.mp3" not in [f.name for f in res.files]
+    finally:
+        subprocess.run(["attrib", "-s", target], capture_output=True)
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Windows folders")
+def test_windows_folder_never_scanned():
+    from diskoptimizer import safety
+    windir = os.environ["WINDIR"]
+    assert os.path.normcase(windir) in safety.system_roots()
+    res = scanner.scan(windir)
+    assert res.total_files == 0 and res.files == [] and res.system_hidden == 1
+
+
 def test_filters(tree):
     files = scanner.scan(tree).files
     assert [f.name for f in apply(files, Filter(categories={"Images"}))] == ["a.jpg", "b.png"]

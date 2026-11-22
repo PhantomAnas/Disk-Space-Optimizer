@@ -15,6 +15,8 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 
+from . import safety
+
 CATEGORIES: dict[str, set[str]] = {
     "Videos": {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v", ".wmv", ".flv", ".mpg", ".mpeg", ".ts", ".3gp"},
     "Images": {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tif", ".tiff", ".heic", ".raw", ".cr2", ".nef", ".psd", ".svg", ".ico"},
@@ -95,6 +97,7 @@ class ScanResult:
     seconds: float
     tree: FolderNode
     cancelled: bool = False
+    system_hidden: int = 0          # Windows/OS folders and system files left out
 
 
 class ScanCancelled(Exception):
@@ -112,9 +115,18 @@ def _is_reparse(entry: os.DirEntry) -> bool:
     return False
 
 
-def scan(root: str, top_n: int = 500, progress=None, cancelled=None, progress_every: float = 0.15) -> ScanResult:
+def _inside(path: str, roots: list[str]) -> bool:
+    p = os.path.normcase(path)
+    return any(p == r or p.startswith(r.rstrip("\\/") + os.sep) for r in roots)
+
+
+def scan(root: str, top_n: int = 500, progress=None, cancelled=None, progress_every: float = 0.15,
+         hide_system: bool = True, system_dirs: list[str] | None = None) -> ScanResult:
     """Walk `root`.  `progress(files_seen, bytes_seen, current_folder)` is
-    called at most every `progress_every` seconds; `cancelled()` is polled."""
+    called at most every `progress_every` seconds; `cancelled()` is polled.
+    With `hide_system` (the default) the Windows folder, other OS folders
+    (`safety.system_roots()`, or `system_dirs` if given) and files marked as
+    system files are not walked or listed at all, so they can never be picked."""
     root = os.path.abspath(root)
     if not os.path.isdir(root):
         raise NotADirectoryError(root)
@@ -122,6 +134,7 @@ def scan(root: str, top_n: int = 500, progress=None, cancelled=None, progress_ev
     files_seen = 0
     bytes_seen = 0
     skipped = 0
+    system_hidden = 0
     last_report = 0.0
     tree = FolderNode(root)
     nodes: dict[str, FolderNode] = {root: tree}
@@ -131,6 +144,13 @@ def scan(root: str, top_n: int = 500, progress=None, cancelled=None, progress_ev
     cap = max(2 * top_n, 2000)
     threshold = 0
     stack = [root]
+    hidden_dirs: set[str] = set()
+    if hide_system:
+        sys_roots = [os.path.normcase(os.path.abspath(r)) for r in (system_dirs if system_dirs is not None else safety.system_roots())]
+        hidden_dirs = set(sys_roots)
+        if _inside(root, sys_roots):
+            stack = []                      # the whole scan target is a system folder
+            system_hidden = 1
     was_cancelled = False
     while stack:
         if cancelled and cancelled():
@@ -146,12 +166,17 @@ def scan(root: str, top_n: int = 500, progress=None, cancelled=None, progress_ev
         if node is None:
             node = FolderNode(folder)
             nodes[folder] = node
+        at_drive_root = hide_system and safety.is_drive_root(folder)
         with it:
             for entry in it:
                 try:
                     if _is_reparse(entry):
                         continue
                     if entry.is_dir(follow_symlinks=False):
+                        if hide_system and (os.path.normcase(entry.path) in hidden_dirs or
+                                            (at_drive_root and entry.name.lower() in safety.ANY_DRIVE_SYSTEM_DIRS)):
+                            system_hidden += 1
+                            continue
                         child = FolderNode(entry.path)
                         node.children[entry.path] = child
                         nodes[entry.path] = child
@@ -162,6 +187,9 @@ def scan(root: str, top_n: int = 500, progress=None, cancelled=None, progress_ev
                     st = entry.stat(follow_symlinks=False)
                 except OSError:
                     skipped += 1
+                    continue
+                if hide_system and safety.is_system_file(entry.path, getattr(st, "st_file_attributes", 0)):
+                    system_hidden += 1
                     continue
                 size = st.st_size
                 files_seen += 1
@@ -183,7 +211,7 @@ def scan(root: str, top_n: int = 500, progress=None, cancelled=None, progress_ev
     _roll_up(tree)
     if progress:
         progress(files_seen, bytes_seen, root)
-    return ScanResult(root, kept, files_seen, bytes_seen, skipped, time.time() - t0, tree, was_cancelled)
+    return ScanResult(root, kept, files_seen, bytes_seen, skipped, time.time() - t0, tree, was_cancelled, system_hidden)
 
 
 def _roll_up(node: FolderNode) -> tuple[int, int]:

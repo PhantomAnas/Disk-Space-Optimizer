@@ -49,7 +49,8 @@ def main(argv: list[str] | None = None) -> int:
     except OSError as exc:
         print(f"\nerror: {exc}", file=sys.stderr)
         return 1
-    print(f"\r{res.total_files:,} files, {human_size(res.total_bytes)} in {res.root} ({res.seconds:.1f}s, {res.skipped} unreadable)")
+    print(f"\r{res.total_files:,} files, {human_size(res.total_bytes)} in {res.root} "
+          f"({res.seconds:.1f}s, {res.skipped} unreadable, {res.system_hidden} Windows/system items hidden)")
     flt = Filter(categories=set(a.category) if a.category else None, text=a.search,
                  min_size=int(a.min_size * 1024 * 1024), older_than_days=a.older_than)
     rows = scanner.apply(res.files, flt, a.sort, descending=a.sort in ("size", "modified", "accessed"))[: a.top]

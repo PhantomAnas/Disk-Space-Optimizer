@@ -471,7 +471,9 @@ class MainWindow(QMainWindow):
         self.result = res
         note = " (stopped early)" if res.cancelled else ""
         skipped = f", {res.skipped} unreadable skipped" if res.skipped else ""
-        self._status(f"{res.root}: {res.total_files:,} files, {human_size(res.total_bytes)} in {res.seconds:.1f}s{skipped}{note}")
+        hidden = f", {res.system_hidden:,} Windows/system items hidden" if res.system_hidden else ""
+        self._status(f"{res.root}: {res.total_files:,} files, {human_size(res.total_bytes)} in {res.seconds:.1f}s"
+                     f"{skipped}{hidden}{note}")
         self._refresh_table()
         self._fill_tree()
 
